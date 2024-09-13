@@ -16,3 +16,8 @@
 
 登出與重啟
 ● 每完成10次檢查後，自動登出帳號並重啟程式，確保系統持續運行。
+
+參考資料:
+https://sinotrade.github.io/zh_TW/
+https://github.com/Sinotrade/Shioaji
+https://schedule.readthedocs.io/en/stable/index.html
