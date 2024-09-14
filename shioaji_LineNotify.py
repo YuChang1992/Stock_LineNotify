@@ -38,18 +38,23 @@ def get_now_stock():
     end_day = date.today()  # 結束日期今天
     
     stock = api.Contracts.Stocks[STOCK_CODE]
+
     kbars = api.kbars(contract=stock, start=str(start_day), end=str(end_day))
     df = pd.DataFrame({**kbars})
     df.ts = pd.to_datetime(df.ts)
     df.set_index("ts", inplace=True)
-    df = df.resample("D").last().dropna()
+
+    daily_low = df['Low'].resample('D').min().dropna()    # 每日最低價格
+    daily_high = df['High'].resample('D').max().dropna()  # 每日最高價格
+    daily_Close = df['Close'].resample("D").last().dropna()  # 每日最後一筆價格
     
     name = stock.name  # 股票名稱
     code = stock.code  # 股票代碼
-    today_high = df.iloc[-1, 1]  # 當日最高
-    today_low = df.iloc[-1, 2]  # 當日最低
-    yesterday_hist = df.iloc[-2, 3]  # 倒數第二筆資料，昨日收盤價
-    today_hist = df.iloc[-1, 3]  # 倒數第一筆資料，即時售價
+    today_low = daily_low.iloc[-1]  # 當日最低
+    today_high = daily_high.iloc[-1]  # 當日最高
+    yesterday_hist = daily_Close.iloc[-2]  # 倒數第二筆資料，昨日收盤價
+    today_hist = daily_Close.iloc[-1]  # 倒數第一筆資料，即時售價
+    time = df.index[-1]  # 最後一筆交易日期時間
     
     up_down = today_hist - yesterday_hist  # 漲跌
     up_down_float = truncate_to_two_decimal_places(up_down)
@@ -63,9 +68,6 @@ def get_now_stock():
         up_down_message = f"▼{up_down_float}({percentage_float}%)"
     else:
         up_down_message = f"─{up_down_float}({percentage_float}%)"
-
-    now = datetime.now()  # 獲取當前時間
-    time = now.strftime('%Y-%m-%d %H:%M:%S')
 
     low = truncate_to_two_decimal_places(today_low)  # 最低價
     high = truncate_to_two_decimal_places(today_high)  # 最高價
