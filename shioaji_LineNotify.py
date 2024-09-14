@@ -16,9 +16,6 @@ SECRET_KEY = "你的 SECRET KEY"
 # 股票代碼
 STOCK_CODE = "股票代號"
 
-# 計數器
-check_count = 0
-
 def initialize_api():
     global api, accounts
     api = sj.Shioaji(simulation=True)
@@ -33,7 +30,7 @@ def truncate_to_two_decimal_places(value):
 
 # 取得個股即時資訊
 def get_now_stock():
-    initialize_api()
+    global api
 
     # 設定日期範圍
     delta = timedelta(days=20)
@@ -86,46 +83,46 @@ def get_now_stock():
 
 
 def check_and_notify():
-    global check_count
     msg, today_hist, percentage_float = get_now_stock()
-    
-    if today_hist is None:
-        print("無法取得股票數據")
-    elif percentage_float is not None:
-        if percentage_float <= -8:
-            message = f"下跌{percentage_float}% 建議大量買入，利用大幅回檔機會"
-        elif percentage_float <= -5:
-            message = f"下跌{percentage_float}% 建議適量買入，降低成本"
-        elif percentage_float <= -2:
-            message = f"下跌{percentage_float}% 建議少量買入，觀察是否反彈"
-        else:
-            print("沒有顯著的股價下跌")
-            message = None
-        
-        if message:
-            send_line_notify(message)
+    try:
+        if today_hist is None:
+            print("無法取得股票數據")
+        elif percentage_float is not None:
+            if percentage_float <= -8:
+                message = f"下跌{percentage_float}% 建議大量買入，利用大幅回檔機會"
+            elif percentage_float <= -5:
+                message = f"下跌{percentage_float}% 建議適量買入，降低成本"
+            elif percentage_float <= -2:
+                message = f"下跌{percentage_float}% 建議少量買入，觀察是否反彈"
+            else:
+                print("沒有顯著的股價下跌")
+                message = None
+            
+            if message:
+                send_line_notify(message)
 
-    check_count += 1
-    if check_count >= 10:
-        api.logout()  # 登出
-        print("已登出帳號")
-        # check_count = 0  # 重置計數器
-        # initialize_api()  # 重新開始執行
-
-        # os.execv(sys.executable, ['python'] + sys.argv)  # 重新啟動程式
-
-        subprocess.Popen([sys.executable] + sys.argv, close_fds=True)  # 啟動新的進程
-        sys.exit()  # 退出當前進程
+    except Exception as e:
+        print(f"錯誤: {e}")
+        time.sleep(30)
 
             
 def main():
+    global api
+    initialize_api()
+
     execute = random.randint(10, 30)
     schedule.every(execute).seconds.do(check_and_notify)  # 每10~30秒執行一次check_and_notify函式
 
     while True:
-        schedule.run_pending()
-        delay = random.randint(3, 5)
-        time.sleep(delay)  # 暫停3~5秒，避免過於頻繁地檢查任務
+        try:
+            schedule.run_pending()
+            delay = random.randint(3, 5)
+            time.sleep(delay)  # 暫停3~5秒，避免過於頻繁地檢查任務
+        except Exception as e:
+            print(f"主程式錯誤: {e}，重新執行程式")
+            time.sleep(60)  # 等待1分鐘
+            subprocess.Popen([sys.executable] + sys.argv, close_fds=True)  # 重啟程式
+            sys.exit()  # 退出當前進程
 
 
 def send_line_notify(message):
@@ -137,9 +134,12 @@ def send_line_notify(message):
 
     param = {'message': f'{msg}\n{message}'}
 
-    # 傳送
-    data = requests.post(url, headers=headers, params=param)  # requests.post向伺服器提交資源或數據  data使用字典的方式傳送資料
-    print(data)
+    try:
+        # 傳送
+        data = requests.post(url, headers=headers, params=param)  # requests.post向伺服器提交資源或數據  data使用字典的方式傳送資料
+        print(data)
+    except Exception as e:
+        print(f"發送LINE通知時出錯: {e}")
 
 
 if __name__ == "__main__":
