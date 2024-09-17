@@ -143,6 +143,8 @@ def send_line_notify(message):
     except Exception as e:
         print(f"發送LINE通知時出錯: {e}")
 
+    time.sleep(300)  # 發送後暫停5分鐘，避免頻繁發送
+
 
 if __name__ == "__main__":
     main()
