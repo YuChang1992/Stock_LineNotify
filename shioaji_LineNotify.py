@@ -46,7 +46,7 @@ def get_now_stock():
 
     daily_low = df['Low'].resample('D').min().dropna()    # 每日最低價格
     daily_high = df['High'].resample('D').max().dropna()  # 每日最高價格
-    daily_Close = df['Close'].resample("D").last().dropna()  # 每日最後一筆價格
+    daily_Close = df['Close'].resample("D").last().dropna()  # 每日最後一筆交易價格
     
     name = stock.name  # 股票名稱
     code = stock.code  # 股票代碼
