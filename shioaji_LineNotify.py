@@ -33,8 +33,8 @@ def get_now_stock():
     global api
 
     # 設定日期範圍
-    delta = timedelta(days=20)
-    start_day = date.today() - delta  # 開始日期為20天前(考慮到年假不開市)
+    delta = timedelta(days=60)
+    start_day = date.today() - delta  # 開始日期為60天前
     end_day = date.today()  # 結束日期今天
     
     stock = api.Contracts.Stocks[STOCK_CODE]
@@ -47,6 +47,8 @@ def get_now_stock():
     daily_low = df['Low'].resample('D').min().dropna()    # 每日最低價格
     daily_high = df['High'].resample('D').max().dropna()  # 每日最高價格
     daily_Close = df['Close'].resample("D").last().dropna()  # 每日最後一筆交易價格
+
+    consecutive_drops, drop_percentage = calculate_consecutive_drops(daily_Close)  # 計算連續下跌天數及下跌百分比
     
     name = stock.name  # 股票名稱
     code = stock.code  # 股票代碼
@@ -78,34 +80,54 @@ def get_now_stock():
            f'最新價格：{ltr} {up_down_message} \n'
            f'現在時間：{time}\n')
 
-    flow_rate = api.usage()
-    print(flow_rate)
+    return msg, today_hist, percentage_float, consecutive_drops, drop_percentage
 
-    return msg, today_hist, percentage_float
+def calculate_consecutive_drops(close_series):
+    df = close_series.to_frame(name='Close')
+
+    consecutive_drops = 0
+    total_drop = 0.0
+
+    last_price = df['Close'].iloc[-1]  # 最新價格作為起始點
+
+    for price in df['Close'].iloc[-2::-1]:
+        if price > last_price:  # 如果前一天價格大於今天的價格，代表下跌
+            consecutive_drops += 1  # 累計下跌天數
+            total_drop += (price - last_price)  # 累計下跌的金額
+            last_price = price
+        else:
+            break
+
+    # 計算下跌百分比
+    total_drop_percentage = (total_drop / df['Close'].iloc[-1]) * 100 if consecutive_drops > 0 else 0
+    drop_percentage = truncate_to_two_decimal_places(total_drop_percentage)
+
+    return consecutive_drops, drop_percentage
 
 
 def check_and_notify():
-    msg, today_hist, percentage_float = get_now_stock()
+    global check_count
+    msg, today_hist, percentage_float, consecutive_drops, drop_percentage = get_now_stock()
     try:
-        if today_hist is None:
-            print("無法取得股票數據")
-        elif percentage_float is not None:
-            if percentage_float <= -8:
-                message = f"下跌{percentage_float}% 建議大量買入，利用大幅回檔機會"
-            elif percentage_float <= -5:
-                message = f"下跌{percentage_float}% 建議適量買入，降低成本"
-            elif percentage_float <= -2:
-                message = f"下跌{percentage_float}% 建議少量買入，觀察是否反彈"
-            else:
-                print("沒有顯著的股價下跌")
-                message = None
+        message = ""
+
+        if percentage_float <= -2:
+                message += f"單日下跌{percentage_float}%\n若因短期負面因素，視為潛在買入機會\n"
+
+        if consecutive_drops > 3 or drop_percentage > 5:
+            message += f"\n連續下跌天數：{consecutive_drops}天\n累計下跌幅度：-{drop_percentage}%"
             
-            if message:
-                send_line_notify(message)
+        if message:
+            send_line_notify(message)
+        else:
+            print("沒有顯著的股價變化")
+
+        check_count += 1
+        print(f"第{check_count}次執行")
 
     except Exception as e:
         print(f"錯誤: {e}")
-        time.sleep(30)
+        time.sleep(60)  # 等待1分鐘再繼續
 
             
 def main():
@@ -128,7 +150,7 @@ def main():
 
 
 def send_line_notify(message):
-    msg, today_hist, percentage_float = get_now_stock()
+    msg, today_hist, percentage_float, consecutive_drops, drop_percentage = get_now_stock()
 
     url = 'https://notify-api.line.me/api/notify'
     token = 'LINE Notify發行的個人權杖'
@@ -138,8 +160,7 @@ def send_line_notify(message):
 
     try:
         # 傳送
-        data = requests.post(url, headers=headers, params=param)  # requests.post向伺服器提交資源或數據  data使用字典的方式傳送資料
-        print(data)
+        requests.post(url, headers=headers, params=param)  # requests.post向伺服器提交資源或數據  data使用字典的方式傳送資料
     except Exception as e:
         print(f"發送LINE通知時出錯: {e}")
 
